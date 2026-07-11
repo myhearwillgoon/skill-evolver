@@ -1,0 +1,444 @@
+# Tech Trend Monitor — Gate Matrix
+
+## Gate Definitions
+
+---
+
+gates:
+  # Gate 0: Intent Clarity
+  G0_INTENT_CLARITY:
+    id: "G0"
+    name: "Intent Clarity Gate"
+    description: "Verify user intent is clear and actionable before any search or analysis"
+    type: "AUTOMATIC"
+    phase: "P0_INTENT_ROUTING"
+    required: true
+
+    criteria:
+      quantitative:
+        - metric: "intent_not_unknown"
+          operator: "=="
+          value: true
+          description: "Intent must be classifiable as new_topic, continue_topic, review_pending, or explain_skill"
+
+        - metric: "confidence_score"
+          operator: ">="
+          value: 0.70
+          description: "Minimum confidence in intent classification"
+
+        - metric: "valid_actionable_output"
+          operator: "=="
+          value: true
+          description: "Must have valid search queries, target run ID, or be explain_skill"
+
+      qualitative:
+        - check: "intent_consistent_with_history"
+          description: "Intent should be consistent with recent runs when continuing a topic"
+
+        - check: "queries_specific_enough"
+          description: "Derived queries should be specific enough to yield relevant GitHub results"
+
+    scoring:
+      weights:
+        intent_not_unknown: 0.40
+        confidence_score: 0.35
+        valid_actionable_output: 0.25
+
+      thresholds:
+        pass: 0.80
+        conditional: 0.60
+        fail: 0.00
+
+    actions:
+      on_pass: "Proceed to P1_SEARCH or appropriate shortcut phase"
+      on_conditional: "Proceed but log low-confidence warning; may affect G5 decision"
+      on_fail: "Ask clarifying question, update STATE.md, and stop until user responds"
+
+    retry:
+      max_attempts: 1
+      strategy: "clarifying_question"
+
+  # Gate 1: Data Quality
+  G1_DATA_QUALITY:
+    id: "G1"
+    name: "Data Quality Gate"
+    description: "Verify web search results are valid, relevant, and sufficient for analysis"
+    type: "AUTOMATIC"
+    phase: "P1_SEARCH"
+    required: true
+
+    criteria:
+      quantitative:
+        - metric: "total_sources"
+          operator: ">="
+          value: 10
+          description: "Minimum total sources across all queries"
+
+        - metric: "unique_domains"
+          operator: ">="
+          value: 3
+          description: "Minimum unique domains for diversity"
+
+        - metric: "avg_relevance"
+          operator: ">="
+          value: 0.70
+          description: "Minimum average relevance score"
+
+        - metric: "error_rate"
+          operator: "<="
+          value: 0.20
+          description: "Maximum error rate (failed queries / total)"
+
+      qualitative:
+        - check: "sources_cover_categories"
+          description: "Sources should cover orchestrator, memory, and trends"
+
+        - check: "no_single_source_domination"
+          description: "No single domain should contribute >50% of sources"
+
+    scoring:
+      weights:
+        total_sources: 0.25
+        unique_domains: 0.25
+        avg_relevance: 0.30
+        error_rate: 0.20
+
+      thresholds:
+        pass: 0.80
+        conditional: 0.60
+        fail: 0.00
+
+    actions:
+      on_pass: "Proceed to P2_AGGREGATION"
+      on_conditional: "Proceed with warning logged; may affect G5 decision"
+      on_fail: "Retry P1 with fallback tool; if still fail, escalate to human"
+
+    retry:
+      max_attempts: 2
+      backoff: "exponential"
+      fallback_tool: "tavily-web-search"
+
+  # Gate 2: Analysis Depth
+  G2_ANALYSIS_DEPTH:
+    id: "G2"
+    name: "Analysis Depth Gate"
+    description: "Verify hyperplan analysis quality and survival rate"
+    type: "AUTOMATIC"
+    phase: "P3_ANALYSIS"
+    required: true
+
+    criteria:
+      quantitative:
+        - metric: "total_findings"
+          operator: ">="
+          value: 20
+          description: "Minimum total findings from 5 roles"
+
+        - metric: "survival_rate"
+          operator: ">="
+          value: 0.50
+          description: "Minimum survival rate after cross-attack (survived/total)"
+
+        - metric: "agents_completed"
+          operator: ">="
+          value: 5
+          description: "All 5 agents must complete"
+
+        - metric: "duration_minutes"
+          operator: "<="
+          value: 180
+          description: "Maximum analysis duration"
+
+      qualitative:
+        - check: "diversity_of_findings"
+          description: "Findings should cover skeptic, validator, researcher, architect, creative perspectives"
+
+        - check: "concrete_evidence"
+          description: "Survived findings should cite specific evidence"
+
+    scoring:
+      weights:
+        total_findings: 0.20
+        survival_rate: 0.35
+        agents_completed: 0.25
+        duration_minutes: 0.20
+
+      thresholds:
+        pass: 0.75
+        conditional: 0.60
+        fail: 0.00
+
+    actions:
+      on_pass: "Proceed to P4_VERIFICATION"
+      on_conditional: "Proceed but flag for reviewer attention at G5"
+      on_fail: "Retry hyperplan once with extended timeout; if still fail, escalate"
+
+    retry:
+      max_attempts: 1
+      extend_timeout: 60  # minutes
+
+  # Gate 3: Verifier Approval
+  G3_VERIFIER_APPROVAL:
+    id: "G3"
+    name: "Verifier Approval Gate"
+    description: "Loop-verifier assessment of analysis quality"
+    type: "AUTOMATIC"
+    phase: "P4_VERIFICATION"
+    required: true
+
+    criteria:
+      quantitative:
+        - metric: "verdict"
+          operator: "in"
+          value: ["PASS", "CONDITIONAL_APPROVE"]
+          description: "Verifier verdict must be PASS or CONDITIONAL_APPROVE"
+
+        - metric: "min_check_score"
+          operator: ">="
+          value: 0.70
+          description: "Minimum score across all verifier checks"
+
+      qualitative:
+        - check: "scope_check"
+          description: "Analysis focuses on core concepts"
+
+        - check: "intent_check"
+          description: "Analysis answers first-principles questions"
+
+        - check: "evidence_check"
+          description: "Analysis based on actual project data"
+
+        - check: "no_cheating_check"
+          description: "Analysis avoids over-abstraction"
+
+        - check: "risk_assessment"
+          description: "Unverified assumptions identified"
+
+    scoring:
+      weights:
+        verdict: 0.40
+        min_check_score: 0.30
+        individual_checks: 0.30
+
+      thresholds:
+        pass: 0.80
+        conditional: 0.60
+        fail: 0.00
+
+    actions:
+      on_pass: "Proceed to P5_REPORT"
+      on_conditional: "Proceed with conditions noted; may affect G5"
+      on_fail: "Return to P3 with verifier feedback; if 2x fail, escalate"
+
+    retry:
+      max_attempts: 2
+      return_to_phase: "P3_ANALYSIS"
+
+  # Gate 4: Output Quality
+  G4_OUTPUT_QUALITY:
+    id: "G4"
+    name: "Output Quality Gate"
+    description: "Verify report completeness and format"
+    type: "AUTOMATIC"
+    phase: "P5_REPORT"
+    required: true
+
+    criteria:
+      quantitative:
+        - metric: "report_exists"
+          operator: "=="
+          value: true
+          description: "Report file must exist"
+
+        - metric: "report_size_kb"
+          operator: ">="
+          value: 10
+          description: "Minimum report size (indicates content)"
+
+      qualitative:
+        - check: "section_1_present"
+          description: "Section: 原始趋势数据 (Original trend data)"
+
+        - check: "section_2_present"
+          description: "Section: 5角色对抗性分析 (5-role adversarial analysis)"
+
+        - check: "section_3_present"
+          description: "Section: 第一性原理核心洞察 (First-principles insights)"
+
+        - check: "section_4_present"
+          description: "Section: 可执行Spec草案 (Executable Spec drafts)"
+
+        - check: "section_5_present"
+          description: "Section: 显式门控验证 (Explicit gate verification)"
+
+        - check: "yaml_specs_valid"
+          description: "YAML specs in draft must be valid"
+
+    scoring:
+      weights:
+        report_exists: 0.20
+        report_size_kb: 0.20
+        sections_present: 0.50
+        yaml_valid: 0.10
+
+      thresholds:
+        pass: 0.90
+        conditional: 0.75
+        fail: 0.00
+
+    actions:
+      on_pass: "Proceed to G5_HUMAN_APPROVAL"
+      on_conditional: "Regenerate missing sections; if can't, escalate"
+      on_fail: "Regenerate entire report; if still fail, escalate"
+
+    retry:
+      max_attempts: 2
+
+  # Gate 5: Human Final Approval
+  G5_HUMAN_APPROVAL:
+    id: "G5"
+    name: "Human Final Approval Gate"
+    description: "Human reviewer final approval before publish"
+    type: "MANUAL"
+    phase: "P5_REPORT"
+    required: true
+    blocker: true  # This gate blocks publication
+
+    criteria:
+      quantitative:
+        - metric: "human_reviewer_approved"
+          operator: "=="
+          value: true
+          description: "Human reviewer must explicitly approve"
+
+        - metric: "review_notes_provided"
+          operator: "=="
+          value: true
+          description: "Review notes must be provided"
+
+      qualitative:
+        - check: "reviewer_understands_report"
+          description: "Reviewer has read and understood the report"
+
+        - check: "reviewer_understands_implications"
+          description: "Reviewer understands implications of publication"
+
+    workflow:
+      steps:
+        - step: 1
+          action: "Notify human reviewer"
+          channel: "STATE.md notification"
+
+        - step: 2
+          action: "Reviewer reviews report"
+          duration: "24 hours max"
+
+        - step: 3
+          action: "Reviewer provides decision"
+          options: ["APPROVED", "REJECTED", "REQUEST_CHANGES"]
+
+        - step: 4
+          action: "If APPROVED, publish report"
+          action_alt: "If REJECTED, abort and log reason"
+          action_alt2: "If REQUEST_CHANGES, return to P3"
+
+    decisions:
+      APPROVED:
+        action: "Publish report to output_dir"
+        update_state: "Set phases.P5_REPORT.handoff.status to APPROVED"
+        notify: "Report published successfully"
+
+      REJECTED:
+        action: "Do not publish"
+        update_state: "Set phases.P5_REPORT.handoff.status to REJECTED"
+        log: "Log rejection reason in STATE.md::decisions"
+        notify: "Report rejected, not published"
+
+      REQUEST_CHANGES:
+        action: "Return to P3_ANALYSIS with feedback"
+        update_state: "Set phases.P3_ANALYSIS.status to PENDING"
+        log: "Log requested changes in STATE.md::decisions"
+        notify: "Changes requested, returning to analysis phase"
+
+    escalation:
+      timeout: "24 hours"
+      on_timeout: "Escalate to backup reviewer or abort"
+
+---
+
+## Gate Dependencies
+
+```yaml
+dependencies:
+  G0:
+    requires: []
+    blocks: [P1, P2, P3, P4, P5]
+
+  G1:
+    requires: [G0]
+    blocks: [P2, P3, P4, P5]
+
+  G2:
+    requires: [G0, G1]
+    blocks: [P4, P5]
+
+  G3:
+    requires: [G0, G1, G2]
+    blocks: [P5]
+
+  G4:
+    requires: [G0, G1, G2, G3]
+    blocks: [G5]
+
+  G5:
+    requires: [G0, G1, G2, G3, G4]
+    blocks: [PUBLISH]
+```
+
+## Gate States
+
+| State | Description |
+|-------|-------------|
+| PENDING | Gate not yet evaluated |
+| IN_PROGRESS | Evaluation in progress |
+| PASSED | All criteria met |
+| CONDITIONAL | Criteria met with conditions |
+| FAILED | Criteria not met |
+| WAITING_HUMAN | Manual gate waiting for reviewer (G5 only) |
+
+## Scoring Ranges
+
+| Gate | Pass | Conditional | Fail |
+|------|------|-------------|------|
+| G0 | ≥0.80 | 0.60-0.79 | <0.60 |
+| G1 | ≥0.80 | 0.60-0.79 | <0.60 |
+| G2 | ≥0.75 | 0.60-0.74 | <0.60 |
+| G3 | ≥0.80 | 0.60-0.79 | <0.60 |
+| G4 | ≥0.90 | 0.75-0.89 | <0.75 |
+| G5 | APPROVED | - | REJECTED |
+
+## Retry Policies
+
+| Gate | Max Retries | Strategy |
+|------|-------------|----------|
+| G0 | 1 | Clarifying question |
+| G1 | 2 | Exponential backoff, fallback tool |
+| G2 | 1 | Extended timeout |
+| G3 | 2 | Return to P3 with feedback |
+| G4 | 2 | Regenerate report |
+| G5 | - | Manual only |
+
+## Escalation
+
+Escalate to human if:
+- Any gate fails after max retries
+- G0 fails and user does not respond to clarifying question
+- G5 times out (24 hours)
+- System error prevents gate evaluation
+- Reviewer requests escalation
+
+---
+
+## Validation
+
+This gate matrix is validated against STATE_SCHEMA.md
