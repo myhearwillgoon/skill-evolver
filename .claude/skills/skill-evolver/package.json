@@ -1,0 +1,32 @@
+{
+  "name": "skill-evolver",
+  "version": "1.0.0",
+  "description": "Discovery sub-loop for evolving Claude Code skills from transcripts",
+  "type": "commonjs",
+  "bin": {
+    "skill-evolver": "./bin/skill-evolver.cjs",
+    "skill-signal": "./bin/skill-signal.cjs",
+    "skill-gap": "./bin/skill-gap.cjs",
+    "skill-harvester": "./bin/skill-harvester.cjs"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "audit": "npx @cobusgreyling/loop-audit .",
+    "smoke": "node bin/skill-signal.cjs --mode=scan --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "keywords": [
+    "claude-code",
+    "skill",
+    "evolver",
+    "discovery",
+    "loop-engineering"
+  ],
+  "author": "skill-evolver",
+  "license": "MIT"
+}

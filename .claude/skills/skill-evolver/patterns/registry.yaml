@@ -1,0 +1,31 @@
+registry_version: "1.0"
+project: skill-evolver
+patterns:
+  - id: skill-discovery
+    name: Skill Discovery
+    description: Detect implicit signals of missing or inadequate skills from Claude Code transcripts.
+    skill: skill-signal
+    triggers:
+      - scheduled
+      - manual
+  - id: skill-gap-promotion
+    name: Skill Gap Promotion
+    description: Cluster signals and promote qualified gaps that meet fusion and distinct-task thresholds.
+    skill: skill-gap
+    triggers:
+      - scheduled
+      - manual
+  - id: skill-harvest
+    name: Skill Harvest
+    description: Turn a promoted gap into a draft SKILL.md and validate it through skills-verifier.
+    skill: skill-harvester
+    triggers:
+      - manual
+      - gated-auto
+  - id: loop-triage
+    name: Loop Triage
+    description: Review skill-evolver state and suggest actions, watch items, or noise.
+    skill: loop-triage
+    triggers:
+      - scheduled
+      - manual
