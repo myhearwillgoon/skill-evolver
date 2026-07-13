@@ -1,0 +1,271 @@
+# Auto-Decision Engine Configuration
+# Replaces Human Gate with automated decision making
+# 3-strike escalation: auto-decision x3 before escalating to human
+
+auto_decision:
+  version: "1.0.0"
+  enabled: true
+  mode: "full_auto"  # Options: full_auto, shadow, report_only
+
+  # 三层验证配置
+  stages:
+    l1_static:
+      weight: 0.30
+      threshold: 60
+      max_score: 100
+      checks:
+        - name: "schema_validation"
+          description: "Validate SKILL.md frontmatter schema"
+          weight: 0.25
+        - name: "duplicate_detection"
+          description: "Check similarity to existing skills"
+          weight: 0.35
+          similarity_threshold: 0.82
+        - name: "syntax_check"
+          description: "Validate markdown syntax and structure"
+          weight: 0.20
+        - name: "completeness_check"
+          description: "Verify all required sections present"
+          weight: 0.20
+          required_sections:
+            - "name"
+            - "description"
+            - "type"
+            - "steps"
+            - "examples"
+
+    l2_semantic:
+      weight: 0.40
+      threshold: 60
+      max_score: 100
+      checks:
+        - name: "similarity_depth"
+          description: "Deep semantic similarity analysis"
+          weight: 0.30
+          # Uses n-gram cosine on full skill content
+        - name: "risk_assessment"
+          description: "Assess potential risks"
+          weight: 0.35
+          risk_categories:
+            - "high_privilege_required"
+            - "destructive_operations"
+            - "external_api_dependency"
+            - "data_exfiltration_risk"
+        - name: "alignment_check"
+          description: "Alignment with existing skills ecosystem"
+          weight: 0.35
+          factors:
+            - "naming_convention"
+            - "category_consistency"
+            - "complexity_match"
+
+    l3_runtime:
+      weight: 0.30
+      threshold: 60
+      max_score: 100
+      checks:
+        - name: "sandbox_execution"
+          description: "Test skill in isolated environment"
+          weight: 0.40
+          timeout: 60
+        - name: "dry_run_simulation"
+          description: "Simulate execution without side effects"
+          weight: 0.35
+        - name: "effect_prediction"
+          description: "Predict effect on signal reduction"
+          weight: 0.25
+          # Uses historical data from similar skills
+
+  # 决策矩阵
+  decision_matrix:
+    approve:
+      condition: "l1 >= 80 AND l2 >= 70 AND l3 >= 60"
+      confidence_threshold: 0.85
+      action: "auto_publish"
+      next_state: "published"
+
+    conditional_approve:
+      condition: "l1 >= 60 AND l2 >= 60 AND l3 >= 60"
+      confidence_threshold: 0.70
+      action: "escalate_with_recommendation"
+      recommendation: "APPROVE"
+      next_state: "pending_review"
+
+    reject:
+      condition: "l1 < 60 OR l2 < 60 OR l3 < 60"
+      action: "record_reject"
+      require_reason: true
+      next_state: "rejected"
+
+    escalate:
+      condition: "conflict_detected OR edge_case OR confidence < 0.70"
+      action: "increment_escalation_counter"
+      max_escalations: 3
+      next_state: "escalated"
+
+  # Escalation 配置
+  escalation:
+    max_retries: 3
+    initial_delay: "1h"
+    backoff: "exponential"
+    backoff_factor: 2.0
+    max_delay: "4h"
+
+    # 权重调整策略 (每次 retry)
+    weight_adjustment:
+      on_l1_failure:
+        l1: +0.05
+        l2: -0.025
+        l3: -0.025
+      on_l2_failure:
+        l1: -0.025
+        l2: +0.05
+        l3: -0.025
+      on_l3_failure:
+        l1: -0.025
+        l2: -0.025
+        l3: +0.05
+
+    # 触发人工介入的条件
+    human_escalation_triggers:
+      - "consecutive_escalations >= 3"
+      - "any_stage_score < 40"
+      - "conflict_between_stages"
+      - "high_risk_category_detected"
+
+  # 冲突检测
+  conflict_detection:
+    enabled: true
+    rules:
+      - name: "high_variance"
+        condition: "max(stage_scores) - min(stage_scores) > 40"
+        description: "Large variance between stage scores"
+      - name: "l1_pass_l2_fail"
+        condition: "l1 >= 80 AND l2 < 50"
+        description: "L1 passes strongly but L2 fails"
+      - name: "l2_pass_l3_fail"
+        condition: "l2 >= 80 AND l3 < 50"
+        description: "L2 passes strongly but L3 fails"
+
+  # 边界情况处理
+  edge_cases:
+    - name: "similar_skill_exists"
+      similarity_range: [0.75, 0.82]
+      action: "conditional_approve"
+      note: "Similar skill exists but below rejection threshold"
+
+    - name: "first_of_category"
+      condition: "no_existing_skills_in_category"
+      action: "escalate"
+      reason: "First skill in category requires extra scrutiny"
+
+    - name: "high_impact_skill"
+      condition: "predicted_usage > 100"
+      action: "escalate"
+      reason: "High predicted usage requires careful review"
+
+  # 审计配置
+  audit:
+    log_all_decisions: true
+    log_decision_context: true
+    log_weight_adjustments: true
+    retention_days: 90
+
+    decision_log_fields:
+      - timestamp
+      - harvest_id
+      - gap_id
+      - stage_scores
+      - final_score
+      - decision
+      - confidence
+      - rationale
+      - escalation_count
+      - adjusted_weights
+
+# Effect Measurement 配置
+effect_measurement:
+  enabled: true
+  shadow_mode:
+    duration: "7d"
+    enabled: true
+    primary_skill_percentage: 10  # 10% traffic to shadow
+
+  metrics:
+    primary:
+      signal_reduction_rate:
+        description: "(signals_before - signals_after) / signals_before"
+        target: 0.30
+        minimum: 0.10
+      resolution_quality_score:
+        description: "Based on transcript analysis"
+        target: 0.80
+        minimum: 0.60
+
+    secondary:
+      user_intervention_rate:
+        description: "How often user intervenes"
+        target: 0.20
+      turn_count_reduction:
+        description: "Average turns to resolution"
+        target: -0.30
+      success_rate_improvement:
+        description: "First-try success rate"
+        target: 0.25
+
+  promotion_criteria:
+    promote_to_primary:
+      condition: "signal_reduction >= 30% AND escalation_rate < 20%"
+      action: "replace_existing_skill"
+      require_human_approval: false
+
+    deprecate:
+      condition: "signal_reduction < 10%"
+      action: "archive_and_notify"
+      require_human_approval: true
+
+    iterate:
+      condition: "signal_reduction >= 10% AND < 30%"
+      action: "tune_and_retest"
+      require_human_approval: false
+
+  auto_tune:
+    enabled: true
+    scope: "weights_only"  # threshold changes require human approval
+    max_adjustment: 0.1      # Max 10% change per iteration
+    min_samples: 10          # Minimum samples before tuning
+
+# 安全边界
+safety:
+  kill_switches:
+    - auto_decision_enabled
+    - auto_publish_enabled
+    - auto_tune_enabled
+
+  circuit_breakers:
+    consecutive_rejects:
+      threshold: 3
+      action: "pause_and_notify"
+
+    consecutive_escalations:
+      threshold: 5
+      action: "pause_and_notify"
+
+  rate_limits:
+    max_decisions_per_hour: 5
+    max_publishes_per_day: 3
+
+# 与现有 skill-evolver 集成
+integration:
+  state_schema_version: "2.0"
+  new_state_sections:
+    - auto_decision
+    - effect_metrics
+    - escalation_counters
+    - decision_log
+
+  hooks:
+    pre_harvest: "none"
+    post_harvest: "run_auto_decision"
+    post_publish: "setup_effect_measurement"
+    post_measurement: "evaluate_and_tune"

@@ -8,6 +8,8 @@ const { kebabCase } = require("./naming.cjs");
 const { runVerifier } = require("./verifier-bridge.cjs");
 const { getEntryText } = require("/home/lenovo/.claude/skills/skills-verifier/src/validators/l3-runtime.cjs");
 const { directoryExists, listFiles, readText, ensureDirectory, writeText } = require("./utils/fs.cjs");
+const { runAutoDecision } = require("./auto-decision/auto-decision-engine.cjs");
+const { createEffectMeasurement } = require("./auto-decision/effect-measurement.cjs");
 
 function makeHarvestId() {
   const now = new Date();
@@ -289,6 +291,59 @@ async function harvestById(gapId, options = {}) {
   writeState(process.cwd(), state.data);
 
   console.log(`[skill-harvester] Verifier run ${verifierResult.id}: L1=${verifierResult.scores.l1} L2=${verifierResult.scores.l2} L3=${verifierResult.scores.l3} status=${verifierResult.status}`);
+
+  // 🆕 Auto-Decision Engine Integration
+  if (result.harvest.status === "pending_human_review") {
+    const { runAutoDecision, createAutoDecisionEngine } = require("./auto-decision/auto-decision-engine.cjs");
+    const { createEffectMeasurement } = require("./auto-decision/effect-measurement.cjs");
+
+    console.log(`[skill-harvester] Running auto-decision for ${result.harvest.id}...`);
+
+    const decisionResult = await runAutoDecision(
+      result.harvest.id,
+      result.draftDir,
+      result.draftPath,
+      state
+    );
+
+    console.log(`[skill-harvester] Auto-decision result: ${decisionResult.type}`);
+
+    if (decisionResult.type === "APPROVE") {
+      // Auto-publish the skill
+      const engine = createAutoDecisionEngine(result.harvest.id, state);
+      const publishResult = await engine.publishSkill(result.draftDir, result.draftPath);
+
+      if (publishResult.published) {
+        // Setup effect measurement (shadow mode)
+        const measurement = createEffectMeasurement(result.harvest.id, state);
+        await measurement.setupShadowMode();
+
+        console.log(`[skill-harvester] Auto-published to ${publishResult.path}`);
+        result.harvest.status = "published";
+        result.harvest.auto_decision = decisionResult;
+        result.harvest.published_at = new Date().toISOString();
+      }
+    } else if (decisionResult.type === "REJECT") {
+      result.harvest.status = "rejected";
+      result.harvest.auto_decision = decisionResult;
+      result.harvest.rejected_at = new Date().toISOString();
+      console.log(`[skill-harvester] Auto-rejected: ${decisionResult.rationale}`);
+    } else if (decisionResult.type === "BREAK_LOOP") {
+      // Escalate to human after 3 strikes
+      result.harvest.status = "escalated_to_human";
+      result.harvest.auto_decision = decisionResult;
+      result.harvest.escalated_at = new Date().toISOString();
+      console.log(`[skill-harvester] ESCALATED TO HUMAN after ${decisionResult.escalation_count} attempts`);
+      console.log(`[skill-harvester] Reason: ${decisionResult.reason}`);
+    } else {
+      // Keep as pending_human_review for manual review
+      result.harvest.auto_decision = decisionResult;
+      console.log(`[skill-harvester] Requires manual review: ${decisionResult.rationale}`);
+    }
+
+    writeState(process.cwd(), state.data);
+  }
+
   return { harvest: result.harvest, verifierResult };
 }
 
