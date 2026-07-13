@@ -149,7 +149,13 @@ async function run(options = {}) {
 
   const globalSkillsDir = path.join(process.env.HOME || ".", ".claude", "skills");
   const projectSkillsDir = path.join(process.cwd(), ".claude", "skills");
-  const existingSkills = loadExistingSkillTexts(globalSkillsDir, projectSkillsDir);
+  const uxHelpersDir = config.ux_helpers_dir || path.join(process.env.HOME || ".", ".claude", "skills", "ux-helpers");
+  // 合并所有来源：全局 skills + 项目 skills + ux-helpers
+  const existingSkills = [
+    ...loadExistingSkillTexts(globalSkillsDir, null),
+    ...loadExistingSkillTexts(projectSkillsDir, null),
+    ...loadExistingSkillTexts(uxHelpersDir, null)
+  ];
 
   const signals = state.skill_evolver.signals || [];
   const activeSignals = signals.filter((s) => new Date(s.expires_at || "9999") > new Date());

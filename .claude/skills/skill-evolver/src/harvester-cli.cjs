@@ -150,7 +150,13 @@ function harvestGap(gap, state, config) {
 
   const globalSkillsDir = path.join(process.env.HOME || ".", ".claude", "skills");
   const projectSkillsDir = path.join(process.cwd(), ".claude", "skills");
-  const existingSkills = loadExistingSkillItems(globalSkillsDir, projectSkillsDir);
+  const uxHelpersDir = config.ux_helpers_dir || path.join(process.env.HOME || ".", ".claude", "skills", "ux-helpers");
+  // 合并所有来源：全局 skills + 项目 skills + ux-helpers
+  const existingSkills = [
+    ...loadExistingSkillItems(globalSkillsDir, null),
+    ...loadExistingSkillItems(projectSkillsDir, null),
+    ...loadExistingSkillItems(uxHelpersDir, null)
+  ];
   const pendingHarvests = (state.skill_evolver.harvests || []).filter((h) => h.status !== "rejected" && h.status !== "published");
 
   const simCheck = findMaxSimilarity(
@@ -166,7 +172,8 @@ function harvestGap(gap, state, config) {
 
   const transcripts = gatherTranscripts(gap, config);
   const skillName = kebabCase(gap.representative_query);
-  const draftDir = path.resolve(process.cwd(), config.draft_dir, skillName);
+  // 使用 UX-Helpers 命名空间（已在上方定义 uxHelpersDir）
+  const draftDir = path.resolve(uxHelpersDir, skillName);
   const draftPath = path.join(draftDir, "SKILL.md");
 
   if (fs.existsSync(draftPath)) {

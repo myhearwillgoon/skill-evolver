@@ -19,6 +19,9 @@ const DEFAULTS = {
   min_verifier_l1_score: 60,
   min_verifier_l2_score: 60,
   min_verifier_l3_score: 60,
+  // UX-Helpers 命名空间：独立存储生成的辅助 skills，避免污染原 skill 目录
+  ux_helpers_dir: "~/.claude/skills/ux-helpers",
+  // 向后兼容：如未配置 ux_helpers_dir，fallback 到 draft_dir（已废弃）
   draft_dir: ".claude/skills/draft",
   transcript_dirs: [
     "~/.claude/transcripts",
@@ -58,6 +61,8 @@ function mergeConfig(base, overlay) {
       merged[key] = overlay[key].map(expandHome);
     } else if (key === "draft_dir" && typeof overlay[key] === "string") {
       merged[key] = expandHome(overlay[key]);
+    } else if (key === "ux_helpers_dir" && typeof overlay[key] === "string") {
+      merged[key] = expandHome(overlay[key]);
     } else {
       merged[key] = overlay[key];
     }
@@ -73,6 +78,7 @@ function loadConfig(options = {}) {
   let config = { ...DEFAULTS };
   config.transcript_dirs = config.transcript_dirs.map(expandHome);
   config.draft_dir = expandHome(config.draft_dir);
+  config.ux_helpers_dir = expandHome(config.ux_helpers_dir);
 
   config = mergeConfig(config, loadYamlFile(projectFile).skill_evolver || {});
   config = mergeConfig(config, loadYamlFile(homeFile).skill_evolver || {});
@@ -83,6 +89,8 @@ function loadConfig(options = {}) {
       if (key === "transcript_dirs" && Array.isArray(options[key])) {
         config[key] = options[key].map(expandHome);
       } else if (key === "draft_dir" && typeof options[key] === "string") {
+        config[key] = expandHome(options[key]);
+      } else if (key === "ux_helpers_dir" && typeof options[key] === "string") {
         config[key] = expandHome(options[key]);
       } else {
         config[key] = options[key];
